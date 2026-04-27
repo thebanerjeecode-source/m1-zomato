@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+pandas
+pyarrow
+httpx
+datasets
+streamlit

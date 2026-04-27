@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Restaurant Recommender (Phase 4)</title>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background: #070a12; color: #ecf2ff; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 28px 18px 64px; }
+      .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+      h1 { font-size: 22px; margin: 0; }
+      .sub { margin: 6px 0 0; color: rgba(236,242,255,0.78); font-size: 13px; line-height: 1.35; }
+      .pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: rgba(236,242,255,0.9); font-size: 12px; }
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+      .card { border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); border-radius: 16px; padding: 14px; }
+      label { display: block; font-size: 12px; color: rgba(236,242,255,0.75); margin-bottom: 6px; }
+      input, select, textarea { width: 100%; padding: 10px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); background: rgba(9,14,26,0.8); color: #ecf2ff; }
+      textarea { min-height: 40px; resize: vertical; }
+      .col-3 { grid-column: span 3; }
+      .col-4 { grid-column: span 4; }
+      .col-6 { grid-column: span 6; }
+      .col-12 { grid-column: span 12; }
+      button { padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.18); background: #22c55e; color: #061009; font-weight: 800; cursor: pointer; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+      .muted { color: rgba(236,242,255,0.72); font-size: 12px; }
+      .warn { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.35); color: rgba(255,235,205,0.95); }
+      .results { margin-top: 12px; display: grid; gap: 10px; }
+      .item { padding: 12px; border-radius: 14px; background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.10); }
+      .title { font-weight: 800; display: flex; gap: 10px; align-items: baseline; }
+      .rank { color: rgba(236,242,255,0.7); font-size: 12px; }
+      .meta { margin-top: 6px; font-size: 12px; color: rgba(236,242,255,0.78); line-height: 1.35; }
+      .explain { margin-top: 8px; color: rgba(236,242,255,0.92); line-height: 1.35; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+      @media (max-width: 900px) { .col-3, .col-4, .col-6 { grid-column: span 12; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <div>
+          <h1>AI Restaurant Recommendations (Phase 4)</h1>
+          <div class="sub">
+            Web UI input → deterministic shortlist (Phase 2) → LLM ranking + explanations (Phase 3 via Groq).<br />
+            Endpoint: <code>POST /api/recommend</code>
+          </div>
+        </div>
+        <div class="pill" id="llmBadge">Checking LLM…</div>
+      </div>
+
+      <div class="card">
+        <form id="form" class="grid">
+          <div class="col-4">
+            <label for="location">Location</label>
+            <input id="location" name="location" value="BTM" placeholder="BTM / Bangalore / Delhi" required />
+          </div>
+          <div class="col-4">
+            <label for="cuisine">Cuisine</label>
+            <input id="cuisine" name="cuisine" value="Chinese" placeholder="Chinese" required />
+          </div>
+          <div class="col-4">
+            <label for="budget">Budget</label>
+            <select id="budget" name="budget">
+              <option value="low">low</option>
+              <option value="medium" selected>medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div class="col-3">
+            <label for="min_rating">Min rating</label>
+            <input id="min_rating" name="min_rating" type="number" min="0" max="5" step="0.1" value="3.5" />
+          </div>
+          <div class="col-3">
+            <label for="top_n">Top N</label>
+            <input id="top_n" name="top_n" type="number" min="1" max="20" step="1" value="5" />
+          </div>
+          <div class="col-6">
+            <label for="additional_preferences">Additional preferences (optional)</label>
+            <textarea id="additional_preferences" name="additional_preferences" placeholder="family-friendly, quick service"></textarea>
+          </div>
+          <div class="col-12 row">
+            <button id="btn" type="submit">Get recommendations</button>
+            <div id="status" class="muted"></div>
+          </div>
+        </form>
+
+        <div id="warnings"></div>
+        <div id="results" class="results"></div>
+      </div>
+    </div>
+
+    <script>
+      const badge = document.getElementById("llmBadge");
+      const form = document.getElementById("form");
+      const btn = document.getElementById("btn");
+      const statusEl = document.getElementById("status");
+      const warningsEl = document.getElementById("warnings");
+      const resultsEl = document.getElementById("results");
+
+      const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+      async function refreshLLMBadge() {
+        try {
+          const res = await fetch("/api/status");
+          const data = await res.json();
+          if (data.llm_ready) {
+            badge.textContent = `Groq enabled: ${data.model}`;
+          } else {
+            badge.textContent = "Groq not configured (fallback mode)";
+          }
+        } catch {
+          badge.textContent = "API not reachable";
+        }
+      }
+
+      function renderWarnings(warnings) {
+        warningsEl.innerHTML = "";
+        if (!warnings || warnings.length === 0) return;
+        const div = document.createElement("div");
+        div.className = "warn";
+        div.innerHTML =
+          "<div style='font-weight:800'>Warnings</div><ul style='margin:6px 0 0 18px; padding:0;'>" +
+          warnings.map((w) => `<li>${esc(w)}</li>`).join("") +
+          "</ul>";
+        warningsEl.appendChild(div);
+      }
+
+      function renderResults(items) {
+        resultsEl.innerHTML = "";
+        if (!items || items.length === 0) {
+          resultsEl.innerHTML = "<div class='muted'>No recommendations returned.</div>";
+          return;
+        }
+        for (const it of items) {
+          const el = document.createElement("div");
+          el.className = "item";
+          el.innerHTML = `
+            <div class="title">
+              <span class="rank">#${esc(it.rank)}</span>
+              <span>${esc(it.name || it.id)}</span>
+            </div>
+            <div class="meta">
+              Location: ${esc(it.location || "N/A")} ·
+              Cuisines: ${esc((it.cuisines || []).join(", "))} ·
+              Rating: ${it.rating == null ? "N/A" : esc(it.rating)} ·
+              Cost: ${it.cost == null ? "N/A" : esc(it.cost)}
+            </div>
+            <div class="explain">${esc(it.explanation || "")}</div>
+          `;
+          resultsEl.appendChild(el);
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        statusEl.textContent = "Loading…";
+        warningsEl.innerHTML = "";
+        resultsEl.innerHTML = "";
+
+        const payload = {
+          location: form.location.value,
+          cuisine: form.cuisine.value,
+          budget: form.budget.value,
+          min_rating: Number(form.min_rating.value || 0),
+          additional_preferences: form.additional_preferences.value || null,
+          top_n: Number(form.top_n.value || 5),
+        };
+
+        try {
+          const res = await fetch("/api/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.detail ? JSON.stringify(data.detail) : "Request failed");
+          renderWarnings(data.warnings);
+          renderResults(data.recommendations);
+          statusEl.textContent = data.used_llm ? "Done (LLM)" : "Done (fallback)";
+          refreshLLMBadge();
+        } catch (err) {
+          renderWarnings([String(err?.message || err)]);
+          renderResults([]);
+          statusEl.textContent = "Error";
+        } finally {
+          btn.disabled = false;
+          setTimeout(() => (statusEl.textContent = ""), 2500);
+        }
+      });
+
+      refreshLLMBadge();
+    </script>
+  </body>
+</html>
+

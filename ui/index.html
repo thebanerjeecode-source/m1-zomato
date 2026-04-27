@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zomato-style Recommender (Phase 0)</title>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background: #0b1220; color: #eaf0ff; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 48px; }
+      .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 16px; }
+      h1 { font-size: 20px; margin: 0 0 12px; }
+      p { margin: 6px 0 0; color: rgba(234,240,255,0.85); }
+      form { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; margin-top: 14px; }
+      label { display: block; font-size: 12px; color: rgba(234,240,255,0.8); margin-bottom: 6px; }
+      input, select { width: 100%; padding: 10px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: rgba(10,16,28,0.7); color: #eaf0ff; }
+      input::placeholder { color: rgba(234,240,255,0.45); }
+      .col-4 { grid-column: span 4; }
+      .col-6 { grid-column: span 6; }
+      .col-12 { grid-column: span 12; }
+      button { padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.18); background: #3b82f6; color: white; font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .muted { color: rgba(234,240,255,0.75); font-size: 12px; }
+      .results { margin-top: 14px; display: grid; gap: 10px; }
+      .item { padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10); }
+      .title { font-weight: 700; }
+      .meta { margin-top: 4px; font-size: 12px; color: rgba(234,240,255,0.78); }
+      .explain { margin-top: 8px; color: rgba(234,240,255,0.9); line-height: 1.35; }
+      .warn { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.35); color: rgba(255,235,205,0.95); }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+      @media (max-width: 820px) { .col-4, .col-6 { grid-column: span 12; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="row">
+          <div>
+            <h1>Zomato-style Recommender (Phase 0)</h1>
+            <p class="muted">Basic web UI input → <code>POST /recommendations</code> → deterministic ranking (stub data).</p>
+          </div>
+        </div>
+
+        <form id="prefsForm">
+          <div class="col-4">
+            <label for="location">Location</label>
+            <input id="location" name="location" placeholder="Delhi" value="Delhi" required />
+          </div>
+          <div class="col-4">
+            <label for="budget">Budget</label>
+            <select id="budget" name="budget" required>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label for="cuisine">Cuisine</label>
+            <input id="cuisine" name="cuisine" placeholder="Chinese" value="Chinese" required />
+          </div>
+          <div class="col-4">
+            <label for="min_rating">Min rating (0-5)</label>
+            <input id="min_rating" name="min_rating" type="number" min="0" max="5" step="0.1" value="3.8" />
+          </div>
+          <div class="col-6">
+            <label for="additional_preferences">Additional preferences (optional)</label>
+            <input id="additional_preferences" name="additional_preferences" placeholder="quick service, family-friendly" />
+          </div>
+          <div class="col-2">
+            <label for="top_n">Top N</label>
+            <input id="top_n" name="top_n" type="number" min="1" max="20" step="1" value="5" />
+          </div>
+
+          <div class="col-12 row">
+            <button id="submitBtn" type="submit">Get Recommendations</button>
+            <div id="status" class="muted"></div>
+          </div>
+        </form>
+
+        <div id="warnings"></div>
+        <div id="results" class="results"></div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("prefsForm");
+      const resultsEl = document.getElementById("results");
+      const warningsEl = document.getElementById("warnings");
+      const statusEl = document.getElementById("status");
+      const submitBtn = document.getElementById("submitBtn");
+
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+      }
+
+      function renderWarnings(warnings) {
+        warningsEl.innerHTML = "";
+        if (!warnings || warnings.length === 0) return;
+        const div = document.createElement("div");
+        div.className = "warn";
+        div.innerHTML = "<div class='title'>Warnings</div><ul style='margin:6px 0 0 18px; padding:0;'>" +
+          warnings.map(w => `<li>${esc(w)}</li>`).join("") +
+          "</ul>";
+        warningsEl.appendChild(div);
+      }
+
+      function renderResults(recommendations) {
+        resultsEl.innerHTML = "";
+        if (!recommendations || recommendations.length === 0) {
+          resultsEl.innerHTML = "<div class='muted'>No recommendations.</div>";
+          return;
+        }
+        for (const r of recommendations) {
+          const item = document.createElement("div");
+          item.className = "item";
+          item.innerHTML = `
+            <div class="title">${esc(r.restaurant.name)} <span class="muted">(score ${esc(r.score)})</span></div>
+            <div class="meta">
+              Location: ${esc(r.restaurant.location)} ·
+              Budget: ${esc(r.restaurant.cost_level)} ·
+              Rating: ${r.restaurant.rating == null ? "N/A" : esc(r.restaurant.rating)} ·
+              Cuisines: ${esc((r.restaurant.cuisines || []).join(", "))}
+            </div>
+            <div class="explain">${esc(r.explanation)}</div>
+          `;
+          resultsEl.appendChild(item);
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        statusEl.textContent = "Loading…";
+        resultsEl.innerHTML = "";
+        warningsEl.innerHTML = "";
+
+        const payload = {
+          location: form.location.value,
+          budget: form.budget.value,
+          cuisine: form.cuisine.value,
+          min_rating: form.min_rating.value === "" ? 0.0 : Number(form.min_rating.value),
+          additional_preferences: form.additional_preferences.value || null,
+          top_n: Number(form.top_n.value || 5),
+        };
+
+        try {
+          const res = await fetch("/recommendations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json();
+          if (!res.ok) throw new Error(body?.detail ? JSON.stringify(body.detail) : "Request failed");
+          renderWarnings(body.warnings);
+          renderResults(body.recommendations);
+          statusEl.textContent = "Done";
+        } catch (err) {
+          statusEl.textContent = "Error";
+          renderWarnings([String(err?.message || err)]);
+          renderResults([]);
+        } finally {
+          submitBtn.disabled = false;
+          setTimeout(() => (statusEl.textContent = ""), 2500);
+        }
+      });
+    </script>
+  </body>
+</html>
+

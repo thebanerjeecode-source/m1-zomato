@@ -1,0 +1,44 @@
+{
+  "artifacts": {
+    "manifest": "/Users/shubho/Downloads/Drop Box/phase1/artifacts/manifest.json",
+    "parquet": "/Users/shubho/Downloads/Drop Box/phase1/artifacts/zomato_clean.parquet"
+  },
+  "columns": [
+    "name",
+    "location",
+    "cuisines",
+    "id",
+    "cost",
+    "rating"
+  ],
+  "dataset_id": "ManikaSaini/zomato-restaurant-recommendation",
+  "field_map": {
+    "cost": "approx_cost(for two people)",
+    "cuisines": "cuisines",
+    "id": null,
+    "location": "location",
+    "name": "name",
+    "rating": "rate"
+  },
+  "generated_at": "2026-04-26T10:06:18.274911+00:00",
+  "row_count": 51717,
+  "source_columns": [
+    "url",
+    "address",
+    "name",
+    "online_order",
+    "book_table",
+    "rate",
+    "votes",
+    "phone",
+    "location",
+    "rest_type",
+    "dish_liked",
+    "cuisines",
+    "approx_cost(for two people)",
+    "reviews_list",
+    "menu_item",
+    "listed_in(type)",
+    "listed_in(city)"
+  ]
+}
