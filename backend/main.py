@@ -87,8 +87,8 @@ async def add_process_time_header(request, call_next):
 # Setup CORS to allow React Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"], # Allow all origins for Vercel deployment
+    allow_credentials=False, # Must be False when origins is ["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
