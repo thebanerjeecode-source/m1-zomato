@@ -174,20 +174,6 @@ This document breaks the system into incremental phases so each phase delivers a
 
 ---
 
-## Phase 8 — Streamlit Deployment (Alternative UI)
-**Goal**: Provide a lightweight, Python-only alternative frontend for rapid prototyping and deployment using Streamlit.
-
-- **Deliverables**
-  - **Streamlit App**:
-    - A single-file frontend (`app.py` or `streamlit_app.py`) that collects user preferences using Streamlit widgets.
-    - Direct integration with the FastAPI backend via HTTP requests, or alternatively, importing the backend logic directly if running as a monolith.
-  - **Deployment Setup**:
-    - Configuration for free hosting platforms like Streamlit Community Cloud or Hugging Face Spaces.
-    - Updated `requirements.txt` to include `streamlit`.
-- **Exit criteria**
-  - A fully functional Streamlit frontend deployed online and accessible via a public URL, communicating with the backend to serve recommendations.
-
----
 
 ## Recommended Interfaces (stable contracts)
 - **Request**: preferences object (location, budget, cuisine, minRating, additionalPreferences)
