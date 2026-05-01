@@ -13,3 +13,5 @@ phase2/artifacts/
 phase3/artifacts/
 phase4/.env
 .env
+frontend-next/.next/
+frontend-next/node_modules/
